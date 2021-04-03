@@ -1,22 +1,40 @@
 
 import { platform } from "os";
 import { ChildProcess, exec } from "child_process";
+import { Logger } from "../infrastructure/Logger";
+import { TestResultProcessor } from "./TestResultProcessor";
+import path = require("path");
 
-export class TestRunner {
+export class DotNetWatch {
 
-    public watch() {
+    private _resultProcessor: any;
+
+    constructor(resultsProcessor: TestResultProcessor) {
+        this._resultProcessor = resultsProcessor;
+    }
+
+    public watchProject(fullProjectPath: string) {
+        const projPath = path.dirname(fullProjectPath);
+        const filename = path.basename(fullProjectPath);
+        this.watch(projPath, filename);
+    }
+
+    public watch(path: string, project: string) {
 
         const command = `dotnet watch test`
-            + ` --verbosity:quiet` // be less verbose to avoid false positives when parsing output
-            + ` --logger "trx;LogFileName=logs"`;
+            + ` --verbosity:quiet`
+            + ` --logger "trx;LogFileName=Logs.trx"`
+            + ` --collect:"XPlat Code Coverage"`
+            + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeTestAssembly=true`;
 
+        Logger.Log("Invoking " + command);
 
-        const p = TestRunner.exec(command, (err: any, stdout: string) => {
+        const p = DotNetWatch.exec(command, (err: any, stdout: string) => {
 
-            //Logger.Log(stdout);
-            console.log(stdout);
+            Logger.Log(err);
+            Logger.Log(stdout);
 
-        }, "./", true);
+        }, path);
 
 
         let startedLine: string[] = [];
@@ -47,7 +65,9 @@ export class TestRunner {
             // Parse the output.
             for (const line of lines) {
 
-                /*Logger.Log(`dotnet watch: ${line}`);
+                Logger.Log(`dotnet watch: ${line}`);
+
+                /*
 
                 if (line === "watch : Started") {
                     this.testCommands.sendRunningTest({ testName: namespaceForDirectory, isSingleTest: false });
@@ -65,11 +85,14 @@ export class TestRunner {
     }
 
 
-    public static exec(command: string, callback: any, cwd?: string, addToProcessList?: boolean): any {
+    public static exec(command: string, callback: any, cwd?: string): any {
         // DOTNET_CLI_UI_LANGUAGE does not seem to be respected when passing it as a parameter to the exec
         // function so we set the variable here instead
         process.env.DOTNET_CLI_UI_LANGUAGE = "en";
         process.env.VSTEST_HOST_DEBUG = "0";
+
+        cwd = cwd || process.cwd();
+        Logger.Log(cwd);
 
         const childProcess = exec(this.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd }, callback);
 

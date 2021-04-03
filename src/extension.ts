@@ -9,24 +9,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	Logger.Log("VsCodeCrunch Enabled");
 
+	const rootPath = vscode.workspace.rootPath || "";
+	const tempDir = rootPath + "/.vscodecrunch";
+
+	if (fs.existsSync(tempDir)) {
+		fs.rmdirSync(tempDir, { recursive: true });
+	}
+	fs.mkdirSync(tempDir);
+
 	const testFinder = new CSharpProjectFinder();
 	const resultsProcessor = new TestResultProcessor();
-	const testRunner = new DotNetWatch(resultsProcessor);
+	const testRunner = new DotNetWatch(tempDir, resultsProcessor);
 
 	let disposable = vscode.commands.registerCommand('vscodecrunch.helloWorld', () => {
 		vscode.window.showInformationMessage('Hello World from vscodecrunch!');
 	});
 
 	context.subscriptions.push(disposable);
-
-	const rootPath = vscode.workspace.rootPath || "";
-	const tempDir = rootPath + "/.vscodecrunch";
-
-	if (fs.existsSync(tempDir)) {
-		fs.rmdirSync(tempDir);
-	}
-	fs.mkdirSync(tempDir);
-
 
 	const projects = await testFinder.execute(rootPath);
 

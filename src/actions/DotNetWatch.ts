@@ -1,4 +1,3 @@
-
 import { platform } from "os";
 import { ChildProcess, exec } from "child_process";
 import { Logger } from "../infrastructure/Logger";
@@ -8,8 +7,10 @@ import path = require("path");
 export class DotNetWatch {
 
     private _resultProcessor: any;
+    private _tempDir: string;
 
-    constructor(resultsProcessor: TestResultProcessor) {
+    constructor(tempDir: string, resultsProcessor: TestResultProcessor) {
+        this._tempDir = tempDir;
         this._resultProcessor = resultsProcessor;
     }
 
@@ -21,10 +22,14 @@ export class DotNetWatch {
 
     public watch(path: string, project: string) {
 
+        const trxPath = `${this._tempDir}\\Logs.trx`;
+
         const command = `dotnet watch test`
             + ` --verbosity:quiet`
-            + ` --logger "trx;LogFileName=Logs.trx"`
+            + ` --logger "trx;LogFileName=${trxPath}"`
             + ` --collect:"XPlat Code Coverage"`
+            + ` --results-directory="${this._tempDir}"`
+            + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json`
             + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeTestAssembly=true`;
 
         Logger.Log("Invoking " + command);
@@ -35,7 +40,6 @@ export class DotNetWatch {
             Logger.Log(stdout);
 
         }, path);
-
 
         let startedLine: string[] = [];
 
@@ -62,12 +66,25 @@ export class DotNetWatch {
             }
             startedLine.push(stdout.substring(lastLineStart, stdout.length));
 
-            // Parse the output.
-            for (const line of lines) {
 
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
                 Logger.Log(`dotnet watch: ${line}`);
 
-                /*
+                if (line === `Results File: ${trxPath}`) {
+
+                }
+
+                if (line === `Attachments:`) {
+                    const attachedFile = lines[i + 1].trim();
+                    this._resultProcessor.processCoverageFile(attachedFile);
+                }
+            }
+
+            // Parse the output.
+            /*for (const line of lines) {
+
+                Logger.Log(`dotnet watch: ${line}`);                
 
                 if (line === "watch : Started") {
                     this.testCommands.sendRunningTest({ testName: namespaceForDirectory, isSingleTest: false });
@@ -77,11 +94,9 @@ export class DotNetWatch {
                     this.testCommands.sendNewTestResults({ clearPreviousTestResults: false, testResults: results });
                 } else if (line.indexOf(": error ") > -1) {
                     this.testCommands.sendBuildFailed({ testName: namespaceForDirectory, isSingleTest: false });
-                }*/
-            }
+                }
+            }*/
         });
-
-
     }
 
 

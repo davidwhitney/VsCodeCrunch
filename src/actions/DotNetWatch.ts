@@ -1,9 +1,10 @@
 import { platform } from "os";
 import * as fs from "fs";
-import { ChildProcess, exec } from "child_process";
+import { exec } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { TestResultProcessor } from "./TestResultProcessor";
 import path = require("path");
+import { readStdOut } from "./StdOutParser";
 
 export class DotNetWatch {
 
@@ -37,68 +38,28 @@ export class DotNetWatch {
 
         Logger.Log("Invoking " + command);
 
-        const p = DotNetWatch.exec(command, (err: any, stdout: string) => {
+        const process = DotNetWatch.exec(command, (err: any, stdout: string) => { Logger.Log(err); }, path);
 
-            Logger.Log(err);
-            Logger.Log(stdout);
-
-        }, path);
-
-        let startedLine: string[] = [];
-
-        p.stdout.on("data", async (buf: any) => {
-            const stdout = String(buf);
-
-            // The string contained in `buf` may contain less or more
-            // than one line. But we want to parse lines as a whole.
-            // Consequently, we have to join them.
-            const lines = [];
-            let lastLineStart = 0;
-            for (let i = 0; i < stdout.length; i++) {
-                const c = stdout[i];
-                if (c === "\r" || c === "\n") {
-                    startedLine.push(stdout.substring(lastLineStart, i));
-                    const line = startedLine.join("");
-                    startedLine = [];
-                    lines.push(line);
-                    if (c === "\r" && stdout[i + 1] === "\n") {
-                        i++;
-                    }
-                    lastLineStart = i + 1;
-                }
-            }
-            startedLine.push(stdout.substring(lastLineStart, stdout.length));
-
+        process.stdout.on("data", async (buf: any) => {
+            const lines = readStdOut(buf);
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 Logger.Log(`dotnet watch: ${line}`);
 
+                if (line === "watch : Started") {
+
+                }
+
                 if (line === `Results File: ${trxPath}`) {
 
                 }
 
-                if (line === `Attachments:`) {
+                if (line === `Attachments:` && lines[i + 1].indexOf("coverage.json") != -1) {
                     const attachedFile = lines[i + 1].trim();
                     this._resultProcessor.processCoverageFile(attachedFile);
                 }
             }
-
-            // Parse the output.
-            /*for (const line of lines) {
-
-                Logger.Log(`dotnet watch: ${line}`);                
-
-                if (line === "watch : Started") {
-                    this.testCommands.sendRunningTest({ testName: namespaceForDirectory, isSingleTest: false });
-                } else if (line === `Results File: ${trxPath}`) {
-                    Logger.Log("Results file detected.");
-                    const results = await parseResults(trxPath);
-                    this.testCommands.sendNewTestResults({ clearPreviousTestResults: false, testResults: results });
-                } else if (line.indexOf(": error ") > -1) {
-                    this.testCommands.sendBuildFailed({ testName: namespaceForDirectory, isSingleTest: false });
-                }
-            }*/
         });
     }
 
@@ -112,7 +73,6 @@ export class DotNetWatch {
         }
     }
 
-
     public static exec(command: string, callback: any, cwd?: string): any {
         // DOTNET_CLI_UI_LANGUAGE does not seem to be respected when passing it as a parameter to the exec
         // function so we set the variable here instead
@@ -122,26 +82,7 @@ export class DotNetWatch {
         cwd = cwd || process.cwd();
         Logger.Log(cwd);
 
-        const childProcess = exec(this.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd }, callback);
-
-        /*
-        if (addToProcessList) {
-
-            Logger.Log(`Process ${childProcess.pid} started`);
-
-            this.processes.push(childProcess);
-
-            childProcess.on("close", (code: number) => {
-
-                const index = this.processes.map((p) => p.pid).indexOf(childProcess.pid);
-                if (index > -1) {
-                    this.processes.splice(index, 1);
-                    Logger.Log(`Process ${childProcess.pid} finished`);
-                }
-            });
-        }*/
-
-        return childProcess;
+        exec(this.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd }, callback);
     }
 
     private static isWindows: boolean = platform() === "win32";

@@ -51,25 +51,25 @@ export class TestResultProcessor {
 
     private readCoverageFile(coverageFilePath: string): Map<string, LineCoverage[]> {
         const contents = fs.readFileSync(coverageFilePath, { encoding: "utf8" });
-        const asObj = JSON.parse(contents);
+        const coverageResults = JSON.parse(contents);
 
-        const dllNames = Object.getOwnPropertyNames(asObj);
+        const assemblyNames = Object.getOwnPropertyNames(coverageResults);
 
         const coverageByFile = new Map<string, any>();
 
-        for (let dll of dllNames) {
+        for (let assembly of assemblyNames) {
 
-            const fileNames = Object.getOwnPropertyNames(asObj[dll]);
+            const fileNames = Object.getOwnPropertyNames(coverageResults[assembly]);
 
             for (let file of fileNames) {
 
                 const lineCoverageInFile: LineCoverage[] = [];
 
-                for (let type of Object.getOwnPropertyNames(asObj[dll][file])) {
+                for (let type of Object.getOwnPropertyNames(coverageResults[assembly][file])) {
 
-                    for (let method of Object.getOwnPropertyNames(asObj[dll][file][type])) {
+                    for (let method of Object.getOwnPropertyNames(coverageResults[assembly][file][type])) {
 
-                        const lines = asObj[dll][file][type][method]["Lines"];
+                        const lines = coverageResults[assembly][file][type][method]["Lines"];
                         const asPairs = Object.entries(lines);
 
                         for (let pair of asPairs) {

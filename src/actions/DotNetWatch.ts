@@ -1,4 +1,5 @@
 import { platform } from "os";
+import * as fs from "fs";
 import { ChildProcess, exec } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { TestResultProcessor } from "./TestResultProcessor";
@@ -21,6 +22,8 @@ export class DotNetWatch {
     }
 
     public watch(path: string, project: string) {
+
+        this.ensureCoverletCollectorInstalled(path, project);
 
         const trxPath = `${this._tempDir}\\Logs.trx`;
 
@@ -97,6 +100,16 @@ export class DotNetWatch {
                 }
             }*/
         });
+    }
+
+    private ensureCoverletCollectorInstalled(path: string, project: string) {
+        const pathAndFilename = path + "/" + project;
+        const contents = fs.readFileSync(pathAndFilename, { encoding: "utf8" });
+
+        if (contents.indexOf("Include=\"coverlet.collector\"") === -1) {
+            const command = "dotnet add package coverlet.collector";
+            exec(DotNetWatch.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd: path }, () => { });
+        }
     }
 
 

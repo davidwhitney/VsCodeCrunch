@@ -4,7 +4,7 @@ import { exec } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { TestResultProcessor } from "./TestResultProcessor";
 import path = require("path");
-import { readStdOut } from "./StdOutParser";
+import { MonitoredProcess } from "./MonitoredProcess";
 
 export class DotNetWatch {
 
@@ -24,6 +24,9 @@ export class DotNetWatch {
 
     public watch(path: string, project: string) {
 
+        process.env.DOTNET_CLI_UI_LANGUAGE = "en";
+        process.env.VSTEST_HOST_DEBUG = "0";
+
         this.ensureCoverletCollectorInstalled(path, project);
 
         const trxPath = `${this._tempDir}\\Logs.trx`;
@@ -36,13 +39,7 @@ export class DotNetWatch {
             + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json`
             + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeTestAssembly=true`;
 
-        Logger.Log("Invoking " + command);
-
-        const process = DotNetWatch.exec(command, (err: any, stdout: string) => { Logger.Log(err); }, path);
-
-        process.stdout.on("data", async (buf: any) => {
-            const lines = readStdOut(buf);
-
+        const monp = new MonitoredProcess((lines: string[]) => {
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 Logger.Log(`dotnet watch: ${line}`);
@@ -61,6 +58,8 @@ export class DotNetWatch {
                 }
             }
         });
+
+        monp.exec(command, path);
     }
 
     private ensureCoverletCollectorInstalled(path: string, project: string) {
@@ -69,25 +68,7 @@ export class DotNetWatch {
 
         if (contents.indexOf("Include=\"coverlet.collector\"") === -1) {
             const command = "dotnet add package coverlet.collector";
-            exec(DotNetWatch.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd: path }, () => { });
+            MonitoredProcess.exec(command, path);
         }
-    }
-
-    public static exec(command: string, callback: any, cwd?: string): any {
-        // DOTNET_CLI_UI_LANGUAGE does not seem to be respected when passing it as a parameter to the exec
-        // function so we set the variable here instead
-        process.env.DOTNET_CLI_UI_LANGUAGE = "en";
-        process.env.VSTEST_HOST_DEBUG = "0";
-
-        cwd = cwd || process.cwd();
-        Logger.Log(cwd);
-
-        exec(this.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd }, callback);
-    }
-
-    private static isWindows: boolean = platform() === "win32";
-
-    private static handleWindowsEncoding(command: string): string {
-        return this.isWindows ? `chcp 65001 | ${command}` : command;
     }
 }

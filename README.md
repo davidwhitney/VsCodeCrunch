@@ -42,4 +42,4 @@ This hardly works, but I'm getting it out here for people to play with while I w
 -----------------------------------------------------------------------------------------------------------
 ## Credits
 
-David Whitney, with thanks to Martain Thwaites for initial help and inspiration.
+David Whitney, with thanks to Martin Thwaites for initial help and inspiration.

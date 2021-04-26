@@ -21,8 +21,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const resultsProcessor = new TestResultProcessor();
 	const testRunner = new DotNetWatch(tempDir, resultsProcessor);
 
-	let disposable = vscode.commands.registerCommand('vscodecrunch.helloWorld', () => {
-		vscode.window.showInformationMessage('Hello World from vscodecrunch!');
+	let disposable = vscode.commands.registerCommand('vscodecrunch.forcestart', () => {
+		vscode.window.showInformationMessage('Force started.');
 	});
 
 	context.subscriptions.push(disposable);

@@ -2,6 +2,7 @@ import { window } from "vscode"
 import * as vscode from "vscode";
 import * as path from "path";
 import { LineCoverage, readCoverageFile } from "./CoverletJsonParser";
+import { Logger } from '../infrastructure/Logger';
 
 export class TestResultProcessor {
 
@@ -29,8 +30,8 @@ export class TestResultProcessor {
     private renderGutters(textEditors: vscode.TextEditor[]) {
 
         textEditors.forEach((textEditor) => {
-            const allLineRange = new vscode.Range(0, 0, textEditor.document.lineCount, 999999);
-            //textEditor.setDecorations(this.decorationNone, [allLineRange]);
+            textEditor.setDecorations(this.decorationPass, []);
+            Logger.Log("Cleared gutters in editor " + textEditor.document.fileName);
         });
 
         for (let textEditor of textEditors) {
@@ -43,6 +44,8 @@ export class TestResultProcessor {
             const singleLineRanges = visitedLines.map(line => new vscode.Range(line.lineIndex, 0, line.lineIndex, 99999));
 
             textEditor.setDecorations(this.decorationPass, singleLineRanges);
+
+            Logger.Log("Set gutters in editor " + textEditor.document.fileName + ". There were " + visitedLines.length + " lines covered.");
         }
     }
 

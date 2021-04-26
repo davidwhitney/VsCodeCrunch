@@ -31,6 +31,10 @@ I mean, there are none yet ;)
 ## Release Notes
 
 
+### 0.0.2
+
+Turns out 0.0.1 didn't work at all ;)
+
 ### 0.0.1
 
 This hardly works, but I'm getting it out here for people to play with while I work out where to take this.

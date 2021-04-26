@@ -5,6 +5,7 @@ import { Logger } from "../infrastructure/Logger";
 import { TestResultProcessor } from "./TestResultProcessor";
 import path = require("path");
 import { MonitoredProcess } from "./MonitoredProcess";
+import events = require("events");
 
 export class DotNetWatch {
 
@@ -27,7 +28,13 @@ export class DotNetWatch {
         process.env.DOTNET_CLI_UI_LANGUAGE = "en";
         process.env.VSTEST_HOST_DEBUG = "0";
 
-        this.ensureCoverletCollectorInstalled(path, project);
+        const fullPath = path + "/" + project;
+        const shadowPath = this.instrumentProjectFile(path, project);
+
+        fs.watchFile(fullPath, { persistent: false }, () => {
+            this.instrumentProjectFile(path, project);
+            Logger.Log("Updated Shadow Project due to changes");
+        });
 
         const trxPath = `${this._tempDir}\\Logs.trx`;
 
@@ -60,6 +67,23 @@ export class DotNetWatch {
         });
 
         monp.exec(command, path);
+    }
+
+    private instrumentProjectFile(path: string, project: string): string {
+
+        const fullPath = path + "/" + project;
+        const shadowPath = path + "/" + "_vscodecrunch." + project;
+
+        /*
+        if (fs.existsSync(shadowPath)) {
+            fs.unlinkSync(shadowPath);
+        }
+
+        fs.copyFileSync(fullPath, shadowPath);*/
+
+        this.ensureCoverletCollectorInstalled(path, project);
+
+        return fullPath;
     }
 
     private ensureCoverletCollectorInstalled(path: string, project: string) {

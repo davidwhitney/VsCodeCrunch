@@ -1,48 +1,58 @@
-
 import * as fs from "fs";
-
 export type LineCoverage = { lineNo: number, hits: number; lineIndex: number };
 
-// Sorry mum.
+// The underlying data returned from the coverage.json file is a messy nested
+// behemoth. This is about as nice as it gets. Sorry! :)
 
 export function readCoverageFile(coverageFilePath: string): Map<string, LineCoverage[]> {
     const contents = fs.readFileSync(coverageFilePath, { encoding: "utf8" });
     const coverageResults = JSON.parse(contents);
+    return readCoverage(coverageResults);
+}
 
-    const assemblyNames = Object.getOwnPropertyNames(coverageResults);
+export function readCoverage(coverageResults: any): Map<string, LineCoverage[]> {
 
-    const coverageByFile = new Map<string, any>();
+    const assemblyCoverageData = [coverageResults].map(cr => {
+        return Object.getOwnPropertyNames(cr).map(name => coverageResults[name]);
+    }).flat();
 
-    for (let assembly of assemblyNames) {
+    const fileCoverageData = assemblyCoverageData.map(assembly => {
+        return Object.getOwnPropertyNames(assembly).map(file => { return { file: file, data: assembly[file] }; });
+    }).flat();
 
-        const fileNames = Object.getOwnPropertyNames(coverageResults[assembly]);
+    const fileCoverageDataByLine = new Map<string, any>();
 
-        for (let file of fileNames) {
+    fileCoverageData.forEach(coverageData => {
+        let { file, data } = coverageData;
+        fileCoverageDataByLine.set(file, fileToLineCoverage(data));
+    });
 
-            const lineCoverageInFile: LineCoverage[] = [];
+    return fileCoverageDataByLine;
+}
 
-            for (let type of Object.getOwnPropertyNames(coverageResults[assembly][file])) {
+function fileToLineCoverage(coverageForAllTypesInFile: any) {
+    let lineCoverageInFile: LineCoverage[] = [];
+    const typeNames = Object.getOwnPropertyNames(coverageForAllTypesInFile);
 
-                for (let method of Object.getOwnPropertyNames(coverageResults[assembly][file][type])) {
+    for (let type of typeNames) {
 
-                    const lines = coverageResults[assembly][file][type][method]["Lines"];
-                    const asPairs = Object.entries(lines);
+        const methodsData = coverageForAllTypesInFile[type];
+        const methodNames = Object.getOwnPropertyNames(methodsData);
 
-                    for (let pair of asPairs) {
-
-                        const lineNo = parseInt(pair[0]);
-                        const hits = parseInt(pair[1] + "");
-
-                        lineCoverageInFile.push({ lineNo, hits, lineIndex: lineNo - 1 });
-                    }
-                }
-            }
-
-            coverageByFile.set(file, lineCoverageInFile);
-
-        }
-
+        const linesInThisType = methodNames.map(method => methodsData[method]["Lines"]);
+        const typeCoverageData = linesInThisType.map(line => methodToLineCoverage(line)).flat();
+        lineCoverageInFile.push(...typeCoverageData);
     }
 
-    return coverageByFile;
+    return lineCoverageInFile;
+}
+
+function methodToLineCoverage(lines: any) {
+    return Object.entries(lines).map(pair => {
+        // Because of course, line numbers are strings.
+        const lineNo = parseInt(pair[0]);
+        const hits = pair[1] as number;
+
+        return { lineNo, hits, lineIndex: lineNo - 1 }
+    });
 }

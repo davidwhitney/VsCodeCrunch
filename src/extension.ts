@@ -27,7 +27,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(disposable);
 
-	const projects = await testFinder.execute(rootPath);
+	let projects = await testFinder.execute(rootPath);
+	projects = projects.filter(project => !project.includes("_vscodecrunch."));
+
+	Logger.Log("Monitoring Projects:" + projects.join(", "));
 
 	for (let proj of projects) {
 		testRunner.watchProject(proj);

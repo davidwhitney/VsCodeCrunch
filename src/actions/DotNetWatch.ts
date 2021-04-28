@@ -1,6 +1,4 @@
-import { platform } from "os";
 import * as fs from "fs";
-import { exec } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { TestResultProcessor } from "./TestResultProcessor";
 import path = require("path");
@@ -12,87 +10,97 @@ export class DotNetWatch {
     private _resultProcessor: any;
     private _tempDir: string;
 
+    private get trxPath(): string { return `${this._tempDir}\\Logs.trx`; }
+
     constructor(tempDir: string, resultsProcessor: TestResultProcessor) {
         this._tempDir = tempDir;
         this._resultProcessor = resultsProcessor;
     }
 
-    public watchProject(fullProjectPath: string) {
+    public async watchProject(fullProjectPath: string) {
         const projPath = path.dirname(fullProjectPath);
         const filename = path.basename(fullProjectPath);
-        this.watch(projPath, filename);
+        await this.watch(projPath, filename);
     }
 
-    public watch(path: string, project: string) {
+    public async watch(path: string, project: string) {
 
         process.env.DOTNET_CLI_UI_LANGUAGE = "en";
         process.env.VSTEST_HOST_DEBUG = "0";
 
         const fullPath = path + "/" + project;
-        const shadowPath = this.instrumentProjectFile(path, project);
 
         fs.watchFile(fullPath, { persistent: false }, () => {
             this.instrumentProjectFile(path, project);
             Logger.Log("Updated Shadow Project due to changes");
         });
 
-        const trxPath = `${this._tempDir}\\Logs.trx`;
+        const shadowPath = this.instrumentProjectFile(path, project);
 
-        const command = `dotnet watch test`
+        const command = `dotnet watch`
+            + ` --project ${shadowPath}`
+            + ` test ${shadowPath}`
             + ` --verbosity:quiet`
-            + ` --logger "trx;LogFileName=${trxPath}"`
+            + ` --logger "trx;LogFileName=${this.trxPath}"`
             + ` --collect:"XPlat Code Coverage"`
             + ` --results-directory="${this._tempDir}"`
             + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json`
             + ` -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeTestAssembly=true`;
 
         const monp = new MonitoredProcess((lines: string[]) => {
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                Logger.Log(`dotnet watch: ${line}`);
-
-                if (line === "watch : Started") {
-
-                }
-
-                if (line === `Results File: ${trxPath}`) {
-
-                }
-
-                if (line === `Attachments:` && lines[i + 1].indexOf("coverage.json") != -1) {
-                    const attachedFile = lines[i + 1].trim();
-                    this._resultProcessor.processCoverageFile(attachedFile);
-                }
-            }
+            this.onProcessOutput(lines);
         });
 
         monp.exec(command, path);
     }
 
+    private onProcessOutput(lines: string[]) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            Logger.Log(`dotnet watch: ${line}`);
+
+            if (line === "watch : Started") {
+
+            }
+
+            if (line === `Results File: ${this.trxPath}`) {
+
+            }
+
+            if (line === `Attachments:` && lines[i + 1].indexOf("coverage.json") != -1) {
+                const attachedFile = lines[i + 1].trim();
+                this._resultProcessor.processCoverageFile(attachedFile);
+            }
+        }
+    }
+
     private instrumentProjectFile(path: string, project: string): string {
+        const fullPath = `${path}/${project}`;
+        const shadowProj = `_vscodecrunch.${project}`;
+        const shadowPath = `${path}/${shadowProj}`;
 
-        const fullPath = path + "/" + project;
-        const shadowPath = path + "/" + "_vscodecrunch." + project;
-
-        /*
         if (fs.existsSync(shadowPath)) {
             fs.unlinkSync(shadowPath);
         }
+        fs.copyFileSync(fullPath, shadowPath);
 
-        fs.copyFileSync(fullPath, shadowPath);*/
+        if (!this.requiresCoverlet(path, shadowProj)) {
+            return shadowPath; // If the project supports coverlet already, just go with it.
+        }
 
-        this.ensureCoverletCollectorInstalled(path, project);
+        const command = `dotnet add ${shadowProj} package coverlet.collector`;
+        MonitoredProcess.execSync(command, path);
 
-        return fullPath;
+        return shadowPath;
     }
 
-    private ensureCoverletCollectorInstalled(path: string, project: string) {
+    private requiresCoverlet(path: string, project: string) {
         const pathAndFilename = path + "/" + project;
         const contents = fs.readFileSync(pathAndFilename, { encoding: "utf8" });
 
         if (contents.indexOf("Include=\"coverlet.collector\"") === -1) {
-            const command = "dotnet add package coverlet.collector";
-            MonitoredProcess.exec(command, path);
+            return true;
         }
+        return false;
     }
 }

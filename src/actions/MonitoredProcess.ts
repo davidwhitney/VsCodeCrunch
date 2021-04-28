@@ -1,7 +1,8 @@
 import { platform } from "os";
-import { exec } from "child_process";
+import { ChildProcess, exec, execSync } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { readStdOut } from "./StdOutParser";
+import { Readable } from "node:stream";
 
 export class MonitoredProcess {
 
@@ -12,19 +13,15 @@ export class MonitoredProcess {
     }
 
     public exec(command: string, cwd?: string): any {
-        const childProcess = MonitoredProcess.exec(command, cwd);
+        const proc = MonitoredProcess.exec(command, cwd);
 
-        if (childProcess === null || childProcess.stdout === null) {
-            throw new Error("Couldn't start process");
-        }
-
-        childProcess.stdout.on("data", async (buf: any) => {
+        proc.stdout?.on("data", async (buf: any) => {
             const lines = readStdOut(buf);
             this._onOutputAvailableCallback(lines);
         });
     }
 
-    public static exec(command: string, cwd?: string): any {
+    public static exec(command: string, cwd?: string): ChildProcess {
         cwd = cwd || process.cwd();
         const callback = (err: any, stdout: string) => { Logger.Log(err); };
 
@@ -35,6 +32,11 @@ export class MonitoredProcess {
         }
 
         return childProcess;
+    }
+
+    public static execSync(command: string, cwd?: string) {
+        cwd = cwd || process.cwd();
+        execSync(MonitoredProcess.handleWindowsEncoding(command), { encoding: "utf8", maxBuffer: 5120000, cwd });
     }
 
     private static isWindows: boolean = platform() === "win32";

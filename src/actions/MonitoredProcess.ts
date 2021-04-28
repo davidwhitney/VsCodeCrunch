@@ -2,7 +2,6 @@ import { platform } from "os";
 import { ChildProcess, exec, execSync } from "child_process";
 import { Logger } from "../infrastructure/Logger";
 import { readStdOut } from "./StdOutParser";
-import { Readable } from "node:stream";
 
 export class MonitoredProcess {
 
